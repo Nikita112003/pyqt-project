@@ -89,43 +89,67 @@ class MainWidget(QMainWindow, Ui_MainWindow):
         self.laps_table.setEditTriggers(QTableWidget.NoEditTriggers)
 
         # loading settings
+        error = [False, []]
         self.con = sqlite3.connect('settings.db')
         self.cur = self.con.cursor()
         try:
             self.cur.execute('SELECT * FROM cities')
         except sqlite3.OperationalError:
+            error[0] = True
+            error[1].append('cities')
             self.cur.execute('''CREATE TABLE cities (
-    id   INTEGER PRIMARY KEY AUTOINCREMENT
-                 UNIQUE
-                 NOT NULL,
     city TEXT    NOT NULL
 );''')
             self.con.commit()
         else:
-            result = self.cur.execute('SELECT city FROM cities').fetchall()
-            for city in result:
-                self.add_city(city[0])
+            try:
+                result = self.cur.execute('SELECT city FROM cities').fetchall()
+                for city in result:
+                    self.add_city(city[0])
+            except sqlite3.OperationalError:
+                error[0] = True
+                error[1].append('cities')
+                self.cur.execute('''DROP TABLE cities;''')
+                self.cur.execute('''CREATE TABLE cities (
+    city TEXT    NOT NULL
+);''')
+                self.con.commit()
 
         try:
             self.cur.execute('SELECT * FROM alarm_clocks;')
         except sqlite3.OperationalError:
+            error[0] = True
+            error[1].append('alarm_clocks')
             self.cur.execute('''CREATE TABLE alarm_clocks (
-    id     INTEGER PRIMARY KEY AUTOINCREMENT
-                   UNIQUE
-                   NOT NULL,
     time  TEXT    NOT NULL,
     days   TEXT    NOT NULL,
     active BOOLEAN NOT NULL
 );''')
             self.con.commit()
         else:
-            result = self.cur.execute('SELECT time, days, active FROM alarm_clocks').fetchall()
-            for alarm_clock in result:
-                self.add_alarm_clock(
-                    AlarmClock(int(alarm_clock[0].split(':')[0]),
-                               int(alarm_clock[0].split(':')[1]),
-                               [str(_) in alarm_clock[1] for _ in range(7)],
-                               bool(alarm_clock[2])))
+            try:
+                result = self.cur.execute('SELECT time, days, active FROM alarm_clocks').fetchall()
+                for alarm_clock in result:
+                    self.add_alarm_clock(
+                        AlarmClock(int(alarm_clock[0].split(':')[0]),
+                                   int(alarm_clock[0].split(':')[1]),
+                                   [str(_) in alarm_clock[1] for _ in range(7)],
+                                   bool(alarm_clock[2])))
+            except sqlite3.OperationalError:
+                error[0] = True
+                error[1].append('alarm_clocks')
+                self.cur.execute('''DROP TABLE alarm_clocks;''')
+                self.cur.execute('''CREATE TABLE alarm_clocks (
+    time  TEXT    NOT NULL,
+    days   TEXT    NOT NULL,
+    active BOOLEAN NOT NULL
+                );''')
+                self.con.commit()
+        if error[0]:
+            msg = QMessageBox()
+            msg.setText('Не удалось загрузить таблицы:\n{}'.format('\n'.join(error[1])))
+            msg.setIcon(QMessageBox.Warning)
+            msg.exec()
 
         # timers
         clock_timer = QTimer(self)
@@ -205,16 +229,28 @@ class MainWidget(QMainWindow, Ui_MainWindow):
                                                QSystemTrayIcon.Information)
 
     def closeEvent(self, a0: QtGui.QCloseEvent) -> None:
+        # saving settings for the next session
         self.cur.execute('DELETE FROM cities;')
         for i in range(self.cities_table.rowCount()):
             self.cur.execute(f'INSERT INTO cities(city) VALUES (\'{self.cities_table.item(i, 0).text()}\')')
-        self.cur.execute('DELETE FROM alarm_clocks')
+        self.cur.execute('DELETE FROM alarm_clocks;')
         for alarm_clock in self.alarm_clocks:
             time = f'{alarm_clock.hours}:{alarm_clock.minutes}'
             days = ''.join(str(_) for _ in alarm_clock.days)
             active = alarm_clock.active
-            self.cur.execute(f'''INSERT INTO alarm_clocks(time, days, active)
-VALUES (\'{time}\', \'{days}\', {int(active)})''')
+            try:
+                self.cur.execute(f'''INSERT INTO alarm_clocks(time, days, active)
+    VALUES (\'{time}\', \'{days}\', {int(active)});''')
+            except sqlite3.OperationalError:
+                self.cur.execute('DROP TABLE alarm_clocks;')
+                self.cur.execute('''CREATE TABLE alarm_clocks (
+    time  TEXT    NOT NULL,
+    days   TEXT    NOT NULL,
+    active BOOLEAN NOT NULL
+);''')
+                self.cur.execute(f'''INSERT INTO alarm_clocks(time, days, active)
+    VALUES (\'{time}\', \'{days}\', {int(active)});''')
+
         self.con.commit()
         self.con.close()
 
