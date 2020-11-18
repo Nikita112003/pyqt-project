@@ -45,7 +45,6 @@ CITIES = {
         dt.timedelta(hours=10),
     ('Острова Феникс (Кирибати)',): dt.timedelta(hours=11),
     ('Остров Рождества (Кирибати)',): dt.timedelta(hours=12)
-
 }
 
 
