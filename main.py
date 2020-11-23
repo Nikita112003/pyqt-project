@@ -1,12 +1,14 @@
 import datetime as dt
 import sqlite3
 import sys
-from PyQt5.QtCore import Qt, QTimer
+from PyQt5.QtCore import Qt, QTimer, QUrl
 from PyQt5 import QtGui
 from PyQt5.QtGui import QIcon
+from PyQt5.QtMultimedia import QMediaContent, QMediaPlayer
 from PyQt5.QtWidgets import *
 from main_interface import Ui_MainWindow
 from add_city import Ui_Dialog as add_city_window
+from alarm_clock_ringed import Ui_Dialog as alarm_ringed_window
 from set_alarm import Ui_Dialog as set_alarm_clock_window
 from set_timer import Ui_Dialog as set_timer_window
 
@@ -77,7 +79,7 @@ class MainWidget(QMainWindow, Ui_MainWindow):
     def __init__(self):
         super(MainWidget, self).__init__()
         self.setupUi(self)
-        self.secondWindow = None
+        self.second_window = None
         self.tray_icon = QSystemTrayIcon(self)
         self.tray_icon.setIcon(QIcon('icon.ico'))
 
@@ -168,17 +170,17 @@ class MainWidget(QMainWindow, Ui_MainWindow):
         self.lap_n = 1
 
         # signals
-        self.add_alarm_clock_btn.clicked.connect(lambda: self.open_new_dialog(AddAlarmClock))
-        self.add_city_btn.clicked.connect(lambda: self.open_new_dialog(AddCity))
+        self.add_alarm_clock_btn.clicked.connect(lambda: self.open_new_dialog(AddAlarmClock, self))
+        self.add_city_btn.clicked.connect(lambda: self.open_new_dialog(AddCity, self))
         self.alarm_clocks_table.cellDoubleClicked.connect(
             lambda: self.open_new_dialog(
-                ChangeAlarmClock,
+                ChangeAlarmClock, self,
                 self.alarm_clocks[self.alarm_clocks_table.selectedIndexes()[0].row()],
                 self.alarm_clocks_table.selectedIndexes()[0].row()))
         self.alarm_clocks_table.itemSelectionChanged.connect(self.alarm_clocks_table_clicked)
         self.change_alarm_clock_btn.clicked.connect(
             lambda: self.open_new_dialog(
-                ChangeAlarmClock,
+                ChangeAlarmClock, self,
                 self.alarm_clocks[self.alarm_clocks_table.selectedIndexes()[0].row()],
                 self.alarm_clocks_table.selectedIndexes()[0].row()))
         self.cities_table.itemSelectionChanged.connect(self.cities_table_clicked)
@@ -188,7 +190,7 @@ class MainWidget(QMainWindow, Ui_MainWindow):
         self.on_off_alarm_clock_btn.clicked.connect(self.on_off_alarm_clock)
         self.reset_stopwatch_btn.clicked.connect(self.reset_stopwatch)
         self.reset_timer_btn.clicked.connect(self.reset_timer)
-        self.set_timer_btn.clicked.connect(lambda: self.open_new_dialog(SetTimer))
+        self.set_timer_btn.clicked.connect(lambda: self.open_new_dialog(SetTimer, self))
         self.start_stop_stopwatch_btn.clicked.connect(self.start_stop_stopwatch)
         self.start_stop_timer_btn.clicked.connect(self.start_stop_timer)
 
@@ -227,6 +229,7 @@ class MainWidget(QMainWindow, Ui_MainWindow):
                                                f'Будильник на {dt.datetime.now().strftime("%H:%M")}'
                                                f' сработал',
                                                QSystemTrayIcon.Information)
+                    self.open_new_dialog(AlarmClockRinged, dt.datetime.now().strftime('%H:%M'))
 
     def closeEvent(self, a0: QtGui.QCloseEvent) -> None:
         # saving settings for the next session
@@ -266,8 +269,8 @@ class MainWidget(QMainWindow, Ui_MainWindow):
                 self.tabWidget.setCurrentIndex(3)
 
     def open_new_dialog(self, dialog, *args):
-        self.secondWindow = dialog(self, *args)
-        self.secondWindow.exec()
+        self.second_window = dialog(*args)
+        self.second_window.exec()
 
     # world time methods
     def add_city(self, city):
@@ -485,6 +488,24 @@ class AddCity(QDialog, add_city_window):
 
     def add_city(self):
         self.parent_.add_city(self.city_choice.currentText())
+        self.close()
+
+
+class AlarmClockRinged(QDialog, alarm_ringed_window):
+    def __init__(self, time):
+        super(AlarmClockRinged, self).__init__()
+        self.setupUi(self)
+        self.label.setText(f'Будильник на {time} сработал')
+
+        self.player = QMediaPlayer()
+        self.player.setMedia(QMediaContent(QUrl.fromLocalFile('alarm_clock_music.mp3')))
+        self.player.setVolume(20)
+        self.player.play()
+
+        self.pushButton.clicked.connect(self.close_window)
+
+    def close_window(self):
+        self.player.stop()
         self.close()
 
 
