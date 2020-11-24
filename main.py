@@ -499,7 +499,6 @@ class AlarmClockRinged(QDialog, alarm_ringed_window):
 
         self.player = QMediaPlayer()
         self.player.setMedia(QMediaContent(QUrl.fromLocalFile('alarm_clock_music.mp3')))
-        self.player.setVolume(20)
         self.player.play()
 
         self.pushButton.clicked.connect(self.close_window)
